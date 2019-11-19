@@ -1,0 +1,171 @@
+---
+title: "My Lab 8"
+author: "Pat Byrne"
+date: "11/19/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(car) # Just use for the Type III ANOVA check here
+library(janitor)
+library(ggbeeswarm)
+library(kableExtra)
+```
+
+
+## READ
+```{r}
+penguins <- read_csv('penguins.csv') %>% 
+  clean_names()
+```
+
+## count by sex n species
+```{r}
+penguin.counts <- penguins %>% 
+  count(species, sex)
+```
+
+## Compare flipper sizes for female penguins across species
+```{r}
+penguin.f <- penguins %>% 
+  filter(sex == 'FEMALE')
+
+# Faceted histograms
+ggplot(data = penguin.f, aes(x = flipper_length_mm)) +
+  geom_histogram() +
+  facet_wrap(~species)
+
+# Faceted QQ plot
+ggplot(data = penguin.f, aes(sample = flipper_length_mm)) +
+  geom_qq() +
+  facet_wrap(~species)
+```
+
+## Summary statistics
+```{r}
+penguin.f.summary <- penguin.f %>% 
+  group_by(species) %>% 
+  summarize(
+    mean_flipper_length = mean(flipper_length_mm),
+    sd_flipper_length = sd(flipper_length_mm),
+    sample_size = n(),
+    se_flipper_length = sd(flipper_length_mm)/sqrt(n()),
+    var_flipper_length = var(flipper_length_mm)
+  )
+```
+
+## Adam Levine's Test
+```{r}
+# H0: variances equal
+leveneTest(flipper_length_mm ~ species, data = penguin.f)
+# Conlcusion: retain the null
+```
+
+Cool so one way ANOVA is chill
+
+## BEES??
+
+Most common error bars:
+- st dev
+- st error
+- CI
+
+```{r}
+ggplot() +
+  geom_beeswarm(data = penguin.f, 
+                aes(x = species, y = flipper_length_mm),
+                size = 1,
+                alpha = 0.6,
+                color = 'gray60') +
+  scale_x_discrete(labels = c('Adelie', 'Chinstrap', 'Gentoo')) +
+  geom_point(data = penguin.f.summary, 
+             aes(x = species, y = mean_flipper_length),
+             color = 'red',
+             size = 4) +
+  geom_errorbar(data = penguin.f.summary,
+                aes(x = species, 
+                    ymin = mean_flipper_length - se_flipper_length,
+                    ymax = mean_flipper_length + se_flipper_length),
+                width = 0.2,
+                color = 'red')
+```
+
+
+## one way anova
+significant flipper length difference between species??????
+```{r}
+penguin.aov <- aov(flipper_length_mm ~ species, data = penguin.f)
+summary(penguin.aov)
+```
+
+H0: all means are the same
+HA: @ least two means different
+
+Cool means are different
+
+Which ones different significatnyl 
+POST HOC TURKEY
+
+```{r}
+TukeyHSD(penguin.aov)
+```
+
+
+LADIES AND GENTLEMEN WE HAVE SIGINIFICANCE ACROSS ALL SPECIES
+
+PRAISE TOM SELEK
+
+## Me make nice proportal table
+
+```{r}
+party.relig <- gss_cat %>% 
+  filter(partyid %in% c('Strong republican', 'Strong democrat')) %>% 
+  filter(relig %in% c('None', 'Catholic')) %>% 
+  count(partyid, relig)
+
+partytable <- party.relig %>% 
+  pivot_wider(names_from = relig, values_from = n)
+```
+
+## Doing what i thought we were doing in the last bit
+
+```{r}
+party.relig.props <- partytable %>% 
+  adorn_percentages(denominator = 'row') %>% 
+  adorn_pct_formatting(digits = 1) %>% 
+  adorn_ns(position = 'front')
+
+kable(party.relig.props) %>% 
+  kable_styling()
+```
+
+
+Are ploitical and religious affiliation independent from each other?
+IS there a significant association between political and religious affiliation?
+Is there a significant effect of political association on religious affilication?
+Is there a significant difference in religious affiliation between strong reps and dems?
+
+```{r}
+#contingency table only w actual counts
+
+chi.counts <- partytable %>% 
+  select(-partyid)
+```
+
+H0: nothing to see here folks
+
+```{r}
+my.party.chi <- chisq.test(chi.counts)
+my.party.chi
+```
+
+There is a significant difference in religious affiliation (none, Catholic) between strong republicans and strong democrats ($\chi^2$ = ..., p < 0.001 )
+
+or 
+
+There is a significant association between party ID and religious affiliation
+
+
+
